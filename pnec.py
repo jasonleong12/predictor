@@ -38,15 +38,21 @@ def find_pnec_record(cas: Any, dataset: pd.DataFrame = None):
     return matches.iloc[0]
 
 
-def classify_pnec_use(data_type: str, quality: Any, ad_status: Any) -> str:
-    """根据最敏感类群的数据质量确定PNEC的建议使用等级。"""
-    if data_type == "实测数据":
+def classify_pnec_data_composition(taxa_details: list) -> str:
+    """仅按四个类群的数据来源区分PNEC的数据构成，不表示可靠性等级。"""
+    data_types = {detail["Data_Type"] for detail in taxa_details}
+    if data_types == {"实测数据"}:
         return "实测数据推导"
+    if data_types == {"预测数据"}:
+        return "模型预测推导"
+    return "实测与预测数据联合推导"
+
+
+def pnec_quality_warning(quality: Any, ad_status: Any) -> Any:
+    """仅在最敏感类群超出应用域或预测质量最差时返回警告。"""
     if ad_status == "Outside AD" or quality in ("Poor", "Bad/Unreliable"):
-        return "不建议定量使用"
-    if quality == "Moderate" or quality is None or ad_status is None:
-        return "低可靠性筛查参考值"
-    return "正常输出（筛查用途）"
+        return "最敏感类群的预测超出应用域或预测质量较差，所得PNEC的不确定性较高，应谨慎使用。"
+    return None
 
 
 def derive_pnec(cas: Any) -> Dict[str, Any]:
@@ -114,10 +120,9 @@ def derive_pnec(cas: Any) -> Dict[str, Any]:
         "Sensitive_Data_Type": sensitive["Data_Type"],
         "Sensitive_AD_status": sensitive["AD_status"],
         "Sensitive_Prediction_Quality": sensitive["Prediction_Quality"],
-        "PNEC_Use_Level": classify_pnec_use(
-            sensitive["Data_Type"],
-            sensitive["Prediction_Quality"],
-            sensitive["AD_status"],
+        "PNEC_Data_Composition": classify_pnec_data_composition(taxa_details),
+        "PNEC_Quality_Warning": pnec_quality_warning(
+            sensitive["Prediction_Quality"], sensitive["AD_status"]
         ),
         "TableS11_Rank1_pMCV": float(record["Rank1_pMCV"]),
         "TableS11_MCV_mg_L": float(record["MCV_mg_L"]),

@@ -364,21 +364,12 @@ def render_pnec_module():
     quality = result["Sensitive_Prediction_Quality"]
     quality_text = QUALITY_CN.get(quality, "不适用（实测）" if quality is None else "未评估")
     info4.metric("预测质量", quality_text)
-    st.write(f"应用域：{AD_CN.get(result['Sensitive_AD_status'], '不适用（实测）')}。")
-    use_level = result["PNEC_Use_Level"]
-    if use_level == "实测数据推导":
-        st.info(f"PNEC使用等级：{use_level}。")
-    elif use_level == "正常输出（筛查用途）":
-        st.success(f"PNEC使用等级：{use_level}。")
-    elif use_level == "低可靠性筛查参考值":
-        st.warning(f"PNEC使用等级：{use_level}。")
-    else:
-        st.error(f"PNEC使用等级：{use_level}。")
-
-    if quality in ("Poor", "Bad/Unreliable"):
-        st.error("最敏感类群的预测质量为较差或不可靠，不建议将该PNEC作为定量决策依据。")
-    if result["Sensitive_AD_status"] == "Outside AD":
-        st.warning("最敏感类群的毒性预测位于应用域外，所得PNEC仅可作为低可靠性筛查参考。")
+    st.write(
+        f"数据构成：{result['PNEC_Data_Composition']}；"
+        f"应用域：{AD_CN.get(result['Sensitive_AD_status'], '不适用（实测）')}。"
+    )
+    if result["PNEC_Quality_Warning"]:
+        st.warning(result["PNEC_Quality_Warning"])
     st.markdown("**四个类群的慢性毒性与质量记录**")
     taxa_rows = []
     for detail in result["Taxa_Details"]:
@@ -404,7 +395,8 @@ def render_pnec_module():
     st.subheader("3. 导出结果")
     export_columns = [
         "CAS", "AF", "Sensitive_Species", "Sensitive_pMCV", "Sensitive_Data_Type",
-        "Sensitive_AD_status", "Sensitive_Prediction_Quality", "PNEC_Use_Level",
+        "Sensitive_AD_status", "Sensitive_Prediction_Quality",
+        "PNEC_Data_Composition", "PNEC_Quality_Warning",
         "Sensitive_AlogP", "MCV_mg_L", "PNEC_mg_L", "PNEC_ug_L", "Derivation",
     ]
     export_data = pd.DataFrame([{column: result.get(column) for column in export_columns}])

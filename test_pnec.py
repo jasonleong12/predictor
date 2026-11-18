@@ -61,23 +61,23 @@ class PNECDerivationTests(unittest.TestCase):
         self.assertEqual(result["Sensitive_Species"], "绿藻")
         self.assertGreater(result["Sensitive_Model_Difference"], 1.0)
 
-    def test_pnec_use_levels(self):
-        self.assertEqual(pnec.classify_pnec_use("实测数据", None, None), "实测数据推导")
-        self.assertEqual(
-            pnec.classify_pnec_use("预测数据", "Good", "In"), "正常输出（筛查用途）"
-        )
-        self.assertEqual(
-            pnec.classify_pnec_use("预测数据", "Moderate", "In"), "低可靠性筛查参考值"
-        )
-        self.assertEqual(
-            pnec.classify_pnec_use("预测数据", "Good", "Outside AD"), "不建议定量使用"
-        )
-        self.assertEqual(
-            pnec.classify_pnec_use("预测数据", "Bad/Unreliable", "In"), "不建议定量使用"
-        )
-        self.assertEqual(
-            pnec.derive_pnec("10116-92-4")["PNEC_Use_Level"], "正常输出（筛查用途）"
-        )
+    def test_pnec_data_composition_and_quality_warning(self):
+        predicted = pnec.derive_pnec("10116-92-4")
+        self.assertEqual(predicted["PNEC_Data_Composition"], "模型预测推导")
+        self.assertIsNone(predicted["PNEC_Quality_Warning"])
+
+        measured = pnec.derive_pnec("1763-23-1")
+        self.assertEqual(measured["PNEC_Data_Composition"], "实测数据推导")
+        self.assertIsNone(measured["PNEC_Quality_Warning"])
+
+        mixed = pnec.derive_pnec("151772-59-7")
+        self.assertEqual(mixed["PNEC_Data_Composition"], "实测与预测数据联合推导")
+
+        self.assertIsNone(pnec.pnec_quality_warning("Moderate", "In"))
+        self.assertIsNone(pnec.pnec_quality_warning("Good", "In"))
+        warning = "最敏感类群的预测超出应用域或预测质量较差，所得PNEC的不确定性较高，应谨慎使用。"
+        self.assertEqual(pnec.pnec_quality_warning("Good", "Outside AD"), warning)
+        self.assertEqual(pnec.pnec_quality_warning("Bad/Unreliable", "In"), warning)
 
     def test_unknown_cas(self):
         with self.assertRaises(ValueError):
