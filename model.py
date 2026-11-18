@@ -43,7 +43,7 @@ def _coefficients(**values: float) -> Mapping[str, float]:
 _MODEL_CONFIGS = {
     "zebrafish_acute": ModelConfig(
         key="zebrafish_acute", sheet="Table S3", species_group="zebrafish",
-        species_label="斑马鱼（Danio rerio）", species_latin="Danio rerio",
+        species_label="斑马鱼", species_latin="Danio rerio",
         toxicity_type="急性", endpoint="pMAV",
         descriptors=("ATSC1m", "GATS7i", "SpMin3_Bh(s)"),
         coefficients=_coefficients(ATSC1m=-0.0047, GATS7i=1.7672, **{"SpMin3_Bh(s)": 1.7729}),
@@ -53,7 +53,7 @@ _MODEL_CONFIGS = {
     ),
     "daphnia_acute": ModelConfig(
         key="daphnia_acute", sheet="Table S4", species_group="daphnia_magna",
-        species_label="大型溞（Daphnia magna）", species_latin="Daphnia magna",
+        species_label="大型溞", species_latin="Daphnia magna",
         toxicity_type="急性", endpoint="pMAV",
         descriptors=("VR1_Dzs", "P_VSA_MR_4", "P_VSA_s_3"),
         coefficients=_coefficients(VR1_Dzs=0.0031, P_VSA_MR_4=0.0691, P_VSA_s_3=0.1879),
@@ -63,7 +63,7 @@ _MODEL_CONFIGS = {
     ),
     "zebrafish_chronic": ModelConfig(
         key="zebrafish_chronic", sheet="Table S5", species_group="zebrafish",
-        species_label="斑马鱼（Danio rerio）", species_latin="Danio rerio",
+        species_label="斑马鱼", species_latin="Danio rerio",
         toxicity_type="慢性", endpoint="pMCV",
         descriptors=("MATS7p", "hmin", "MLFER_BO"),
         coefficients=_coefficients(MATS7p=5.497, hmin=-8.9986, MLFER_BO=0.8872),

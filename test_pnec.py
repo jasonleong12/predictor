@@ -37,7 +37,7 @@ class PNECDerivationTests(unittest.TestCase):
 
     def test_predicted_sensitive_taxon_quality(self):
         result = pnec.derive_pnec("10116-92-4")
-        self.assertEqual(result["Sensitive_Species"], "斑马鱼（Danio rerio）")
+        self.assertEqual(result["Sensitive_Species"], "斑马鱼")
         self.assertEqual(result["Sensitive_Data_Type"], "预测数据")
         self.assertEqual(result["Sensitive_Prediction_Quality"], "Good")
         self.assertEqual(result["Sensitive_AD_status"], "In")

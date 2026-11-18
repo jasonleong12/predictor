@@ -82,7 +82,7 @@ def toxicity_scatter_chart(
 def williams_chart(
     plot_data: pd.DataFrame, h_star: float, selected_cas: Optional[str] = None
 ) -> alt.Chart:
-    """仅使用有实测残差的记录绘制Williams图。"""
+    """仅使用有实测残差的记录绘制威廉姆斯图。"""
     measured = plot_data.loc[plot_data["Status"] != "Untested"].copy()
     base = (
         alt.Chart(measured)
@@ -115,7 +115,7 @@ def williams_chart(
             .mark_point(shape="diamond", size=180, color=CURRENT_COLOR, filled=True)
             .encode(x="SI_h:Q", y="SI_Std_Resid:Q", tooltip=["CAS:N"])
         )
-    return chart.properties(height=340, title=f"Williams图（h* = {h_star:.4f}）")
+    return chart.properties(height=340, title=f"威廉姆斯图（h* = {h_star:.4f}）")
 
 
 def chemical_space_chart(
@@ -188,7 +188,7 @@ def pnec_taxa_chart(taxa_details: List[Dict[str, Any]]) -> alt.Chart:
                 alt.Tooltip("pMCV:Q", title="pMCV", format=".4f"),
                 alt.Tooltip("MCV_mg_L:Q", title="MCV（mg/L）", format=".4g"),
                 alt.Tooltip("Data_Type:N", title="数据类型"),
-                alt.Tooltip("Prediction_Quality:N", title="Prediction Quality"),
+                alt.Tooltip("Prediction_Quality:N", title="预测质量"),
                 alt.Tooltip("Used_Label:N", title="用途"),
             ],
         )

@@ -26,8 +26,35 @@ QUALITY_CN = {
     "Bad/Unreliable": "较差/不可靠",
 }
 AD_CN = {"In": "应用域内", "Outside AD": "应用域外"}
-CUSTOM_OPTION = "自定义化合物（手工输入）"
 SPECIES_ORDER = ("zebrafish", "daphnia_magna", "water_flea", "midge", "algae")
+TAXON_NOTES = {
+    "water_flea_chronic": (
+        "水溞慢性数据涵盖：大型溞（*Daphnia magna*）、模糊网纹溞（*Ceriodaphnia dubia*）、"
+        "多刺裸腹溞（*Moina macrocopa*）、隆线溞（*Daphnia carinata*）和"
+        "湖生蚤状溞（*Daphnia pulicaria*）。"
+    ),
+    "midge_chronic": (
+        "摇蚊慢性数据涵盖：岸溪摇蚊（*Chironomus riparius*）、羽摇蚊（*Chironomus plumosus*）"
+        "和伸展双叶摇蚊（*Chironomus tentans*）。"
+    ),
+    "algae_chronic": (
+        "绿藻慢性数据涵盖：栅藻属（*Scenedesmus*）、小球藻属（*Chlorella*）、"
+        "衣藻属（*Chlamydomonas*）、尖胞藻属（*Raphidocelis*）和月牙藻属（*Selenastrum*）。"
+    ),
+}
+SPECIES_IMAGES = {
+    "zebrafish": ("zebrafish.jpg", "斑马鱼示意图"),
+    "daphnia_magna": ("water_flea.jpg", "大型溞（*Daphnia magna*）示意图"),
+    "water_flea": ("water_flea.jpg", "水溞类群示意图（图为大型溞 *Daphnia magna*）"),
+    "midge": ("midge.jpg", "摇蚊类群示意图"),
+    "algae": ("algae.jpg", "绿藻类群示意图"),
+}
+SCORE_CN = {3: "良好", 2: "中等", 1: "较差"}
+
+
+def score_with_label(value):
+    score = int(value)
+    return f"{score}（{SCORE_CN[score]}）"
 
 
 def format_number(value, digits=8):
@@ -65,16 +92,6 @@ def render_reference():
     st.sidebar.caption("结果仅用于科研与危害筛查，不能替代实测毒性数据或法定环境限值。")
 
 
-def show_si_prediction_check(result, endpoint):
-    if result["SI_Pred_pTox"] is not None:
-        difference = abs(result["pTox"] - result["SI_Pred_pTox"])
-        if difference > 0.05:
-            st.warning(
-                f"固定方程计算值与SI参考预测值相差{difference:.4f}个对数单位，"
-                "请核对该条记录的描述符和参考结果。"
-            )
-
-
 def render_toxicity_module():
     species_labels = {
         group: next(
@@ -109,6 +126,13 @@ def render_toxicity_module():
         )
         config = MODEL_CONFIGS[model_key]
         st.selectbox("毒性终点", [config.endpoint])
+        if species_group in SPECIES_IMAGES:
+            image_name, image_caption = SPECIES_IMAGES[species_group]
+            image_path = Path(__file__).resolve().parent / "assets" / "species" / image_name
+            image_left, image_center, image_right = st.columns([1, 4, 1])
+            with image_center:
+                st.image(str(image_path), use_container_width=True)
+            st.caption(image_caption)
 
     data = get_dataset(model_key)
     cas_options = sorted(data["CAS"].astype(str).tolist())
@@ -117,31 +141,19 @@ def render_toxicity_module():
     st.caption(
         f"当前模型：{config.species_label}｜{config.toxicity_type}｜{config.endpoint}"
     )
+    if model_key in TAXON_NOTES:
+        st.caption(TAXON_NOTES[model_key])
     selected_option = st.selectbox(
-        "选择化合物CAS，或选择自定义输入",
-        [CUSTOM_OPTION] + cas_options,
+        "选择化合物CAS",
+        cas_options,
         key=f"cas_selector_{model_key}",
     )
-
-    record = None
-    if selected_option != CUSTOM_OPTION:
-        record = find_compound_record(model_key, selected_option, data)
-
-    if record is None:
-        default_cas = ""
-        defaults = {name: 0.0 for name in (*config.descriptors, "MW", "AlogP")}
-    else:
-        default_cas = str(record["CAS"])
-        defaults = {name: float(record[name]) for name in (*config.descriptors, "MW", "AlogP")}
+    record = find_compound_record(model_key, selected_option, data)
+    defaults = {name: float(record[name]) for name in (*config.descriptors, "MW", "AlogP")}
 
     widget_suffix = f"{model_key}_{selected_option}"
+    cas = selected_option
     with st.form(f"prediction_form_{model_key}"):
-        cas = st.text_input(
-            "化合物CAS或SI编号",
-            value=default_cas,
-            key=f"cas_{widget_suffix}",
-            help="无CAS的清单化合物可使用NOCAS编号。",
-        )
         input_columns = st.columns(len(config.descriptors) + 2)
         descriptor_values = {}
         for column, name in zip(input_columns, config.descriptors):
@@ -167,7 +179,7 @@ def render_toxicity_module():
                 value=defaults["AlogP"],
                 format="%.8g",
                 key=f"AlogP_{widget_suffix}",
-                help="SI中的logP，仅作为化合物信息展示，不参与固定方程计算。",
+                help="logP仅作为化合物信息展示，不参与固定方程计算。",
             )
         submitted = st.form_submit_button("计算毒性并评价结果", type="primary")
 
@@ -175,8 +187,8 @@ def render_toxicity_module():
         st.code(config.equation, language=None)
         st.markdown(
             "- 有实测记录的化合物：明确展示实测毒性，模型预测仅用于实测—预测对照，不进行PRI评级。\n"
-            "- 待预测化合物且描述符未修改：毒性由固定方程实时计算，应用域及PRI质量引用SI对应记录。\n"
-            "- 自定义CAS或修改描述符：实时计算毒性和杠杆值应用域；PRI显示为未评估，不沿用其他记录。"
+            "- 待预测化合物且描述符未修改：由固定方程计算毒性，并显示应用域及PRI质量评价。\n"
+            "- 修改描述符：重新计算毒性和杠杆值应用域，PRI显示为未评估。"
         )
 
     if not submitted:
@@ -215,7 +227,6 @@ def render_toxicity_module():
         st.caption(
             f"预测{endpoint}－实测{endpoint} = {result['Prediction_Minus_Exp']:+.6f}"
         )
-    show_si_prediction_check(result, endpoint)
 
     st.subheader("3. 应用域与质量评价")
     quality_col, ad_col, h_col = st.columns(3)
@@ -224,36 +235,29 @@ def render_toxicity_module():
     if is_measured:
         quality_col.metric("数据性质", "实测数据")
     else:
-        quality_col.metric("Prediction Quality", quality_text)
+        quality_col.metric("预测质量", quality_text)
     ad_col.metric("应用域判定", AD_CN.get(result["AD_status"], result["AD_status"]))
     h_col.metric("杠杆值h", f"{result['h']:.5f}", help=f"h* = {config.h_star:.4f}")
 
     if result["AD_status"] == "Outside AD":
         st.warning("该化合物位于应用域外或存在响应异常，模型预测不确定性较高，请谨慎使用。")
-    elif result["Reference_Match"]:
-        st.success("该记录的SI应用域判定为应用域内。")
-    else:
-        st.info("按本次输入的实时杠杆值判断，该化合物位于应用域内（h < h*）。")
 
     if is_measured:
         st.info("该记录为实测数据，实测值优先于模型预测值，不适用于PRI质量评级。")
         st.write(f"标准化残差：{result['SI_Std_Resid']:.4f}")
     elif result["Reference_Match"]:
-        st.caption(f"质量评价来源：{result['Quality_Source']}。毒性预测由固定方程计算。")
-        if quality == "Moderate":
-            st.warning("SI综合预测质量为中等，建议结合PRI分项结果解释预测值。")
-        elif quality in ("Poor", "Bad/Unreliable"):
-            st.error("SI综合预测质量为较差或不可靠，不建议将本结果作为定量决策依据。")
+        if quality in ("Poor", "Bad/Unreliable"):
+            st.error("综合预测质量为较差或不可靠，不建议将本结果作为定量决策依据。")
 
         st.markdown("**PRI分项与相似性信息**")
         pri_table = pd.DataFrame(
             [
-                ["MAE-LOO评分（权重0.5）", result["Score_MAE_LOO"]],
-                ["毒性响应接近程度评分（权重0.3）", result["Score_Proximity_Train_YObs_Mean"]],
-                ["基于相似性的应用域评分（权重0.2）", result["Score_Similarity_AD"]],
-                ["综合评分", result["Composite_Score"]],
-                ["Euclidean Distance", result["Euclidean_Distance"]],
-                ["Generalized Jaccard Coefficient", result["Generalized_Jaccard_Coeff"]],
+                ["MAE-LOO评分（权重0.5）", score_with_label(result["Score_MAE_LOO"])],
+                ["毒性响应接近程度评分（权重0.3）", score_with_label(result["Score_Proximity_Train_YObs_Mean"])],
+                ["基于相似性的应用域评分（权重0.2）", score_with_label(result["Score_Similarity_AD"])],
+                ["综合评分", score_with_label(result["Composite_Score"])],
+                ["欧氏距离", result["Euclidean_Distance"]],
+                ["广义杰卡德系数", result["Generalized_Jaccard_Coeff"]],
                 ["毒性响应分布位置", result["Yobs_Test_Distribution"]],
             ],
             columns=["评价项目", "结果"],
@@ -261,22 +265,13 @@ def render_toxicity_module():
         pri_table["结果"] = pri_table["结果"].astype(str)
         st.dataframe(pri_table, hide_index=True, use_container_width=True)
     else:
-        st.warning(
-            "当前为自定义输入，或清单化合物的描述符已被修改。"
-            "平台仅计算了杠杆值应用域，PRI综合质量未评估。"
-        )
-
-    if result["Reference_Match"]:
-        with st.expander("核对SI参考预测值"):
-            st.write(f"SI Pred. {endpoint}：{result['SI_Pred_pTox']:.8f}")
-            st.write(f"本次固定方程计算值：{result['pTox']:.8f}")
-            st.write(f"绝对差：{abs(result['pTox'] - result['SI_Pred_pTox']):.3e}")
+        st.warning("当前描述符与原始记录不一致，PRI综合质量未评估。")
 
     st.subheader("4. 结果可视化")
     plot_data = get_plot_data(model_key)
     highlight_cas = result["CAS"] if result["Reference_Match"] else None
     scatter_tab, williams_tab, space_tab = st.tabs(
-        ["实测—预测散点图", "Williams图", "MW–logP化学空间"]
+        ["实测—预测散点图", "威廉姆斯图", "MW–logP化学空间"]
     )
     with scatter_tab:
         st.altair_chart(
@@ -291,7 +286,7 @@ def render_toxicity_module():
             use_container_width=True,
         )
         if not is_measured:
-            st.caption("当前化合物没有实测残差，因此Williams图不显示其残差点。")
+            st.caption("当前化合物没有实测残差，因此威廉姆斯图不显示其残差点。")
     with space_tab:
         st.altair_chart(
             chemical_space_chart(plot_data, highlight_cas),
@@ -304,10 +299,12 @@ def render_toxicity_module():
         "Data_Type", *config.descriptors, "MW", "AlogP",
         "Exp_pTox", "Exp_Tox_mmol_L", "Exp_Tox_umol_L", "Exp_Tox_mg_L",
         "pTox", "Tox_mmol_L", "Tox_umol_L", "Tox_mg_L", "h", "h_star",
-        "AD_status", "Prediction_Quality", "Quality_Source",
+        "AD_status", "Prediction_Quality",
     ]
     export_data = pd.DataFrame([{column: result.get(column) for column in export_columns}])
-    export_data = export_data.rename(columns={"AlogP": "logP"})
+    export_data = export_data.rename(
+        columns={"AlogP": "logP", "Prediction_Quality": "预测质量"}
+    )
     safe_cas = re.sub(r"[^A-Za-z0-9_.-]+", "_", result["CAS"])
     st.download_button(
         "下载当前结果（CSV）",
@@ -324,13 +321,9 @@ def render_pnec_module():
     cas_options = sorted(data["CAS"].astype(str).tolist())
 
     st.subheader("1. 化合物输入")
-    selected_option = st.selectbox("选择Table S11中的化合物CAS", cas_options)
+    selected_option = st.selectbox("选择化合物CAS", cas_options)
     with st.form("pnec_form"):
-        cas = st.text_input(
-            "化合物CAS或SI编号",
-            value=selected_option,
-            key=f"pnec_cas_{selected_option}",
-        )
+        cas = selected_option
         submitted = st.form_submit_button("推导PNEC", type="primary")
 
     with st.expander("查看PNEC推导流程"):
@@ -370,11 +363,8 @@ def render_pnec_module():
     info3.metric("数据类型", result["Sensitive_Data_Type"])
     quality = result["Sensitive_Prediction_Quality"]
     quality_text = QUALITY_CN.get(quality, "不适用（实测）" if quality is None else "未评估")
-    info4.metric("Prediction Quality", quality_text)
-    st.write(
-        f"应用域：{AD_CN.get(result['Sensitive_AD_status'], '不适用（实测）')}；"
-        f"质量数据来源：SI {result['Sensitive_Sheet']}。"
-    )
+    info4.metric("预测质量", quality_text)
+    st.write(f"应用域：{AD_CN.get(result['Sensitive_AD_status'], '不适用（实测）')}。")
     use_level = result["PNEC_Use_Level"]
     if use_level == "实测数据推导":
         st.info(f"PNEC使用等级：{use_level}。")
@@ -385,19 +375,10 @@ def render_pnec_module():
     else:
         st.error(f"PNEC使用等级：{use_level}。")
 
-    if quality == "Moderate":
-        st.warning("最敏感类群的预测质量为中等，PNEC的不确定性相对较高，应结合PRI结果使用。")
-    elif quality in ("Poor", "Bad/Unreliable"):
+    if quality in ("Poor", "Bad/Unreliable"):
         st.error("最敏感类群的预测质量为较差或不可靠，不建议将该PNEC作为定量决策依据。")
     if result["Sensitive_AD_status"] == "Outside AD":
         st.warning("最敏感类群的毒性预测位于应用域外，所得PNEC仅可作为低可靠性筛查参考。")
-    if result["Sensitive_Model_Difference"] > 0.05:
-        st.warning(
-            f"Table S11与当前最敏感类群源表的pMCV相差"
-            f"{result['Sensitive_Model_Difference']:.4f}个对数单位；"
-            "本结果已按慢性源表pMCV重新计算MCV和PNEC。"
-        )
-
     st.markdown("**四个类群的慢性毒性与质量记录**")
     taxa_rows = []
     for detail in result["Taxa_Details"]:
@@ -408,7 +389,7 @@ def render_pnec_module():
                 "MCV（mg/L）": detail["MCV_mg_L"],
                 "数据类型": detail["Data_Type"],
                 "应用域": AD_CN.get(detail["AD_status"], "—"),
-                "Prediction Quality": QUALITY_CN.get(detail["Prediction_Quality"], "—"),
+                "预测质量": QUALITY_CN.get(detail["Prediction_Quality"], "—"),
                 "用于PNEC": "是" if detail["Used_for_PNEC"] else "否",
             }
         )
@@ -427,7 +408,9 @@ def render_pnec_module():
         "Sensitive_AlogP", "MCV_mg_L", "PNEC_mg_L", "PNEC_ug_L", "Derivation",
     ]
     export_data = pd.DataFrame([{column: result.get(column) for column in export_columns}])
-    export_data = export_data.rename(columns={"Sensitive_AlogP": "logP"})
+    export_data = export_data.rename(
+        columns={"Sensitive_AlogP": "logP", "Sensitive_Prediction_Quality": "预测质量"}
+    )
     safe_cas = re.sub(r"[^A-Za-z0-9_.-]+", "_", result["CAS"])
     st.download_button(
         "下载PNEC结果（CSV）",
@@ -442,8 +425,10 @@ logo_left, logo_center, logo_right = st.columns([1, 3, 1])
 with logo_center:
     st.image(str(logo_path), use_container_width=True)
 
-st.title("PFAS水生毒性预测及PNEC估算工具")
-st.caption("提供六种急慢性毒性模型及基于最敏感类群的PNEC估算")
+st.markdown(
+    '<h1 style="text-align: center;">PFAS水生毒性预测及PNEC估算工具</h1>',
+    unsafe_allow_html=True,
+)
 
 module = st.sidebar.selectbox("功能模块", ["毒性预测", "PNEC估算"])
 if module == "毒性预测":
